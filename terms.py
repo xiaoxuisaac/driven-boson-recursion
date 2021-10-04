@@ -15,15 +15,15 @@ from no import normal
 from printable import Basic as Printable,  B, Bd, C, Cd
 import pickle
 
-hbar = Symbol("hbar")
-t = Symbol('t')
+hbar = Symbol("hbar", real=True)
+t = Symbol('t', real = True)
 
 
 
 class Term(Printable): #in Hilbert space: normal-ordered. or in Phase space, Moyal product
     is_Term = True
     is_Terms = False
-    lam = Symbol("hbar")
+    lam = Symbol("hbar", real=True)
     space = "Hilbert"
     star_map = {}
     lie_der_map = {}
@@ -168,48 +168,80 @@ class Term(Printable): #in Hilbert space: normal-ordered. or in Phase space, Moy
 
 
     def select(self, term):
+        if not isinstance(term, (Terms,Term)) and isinstance(term, Basic):
+            term = Term(Prefactor((term, 1)), smp.S(1), smp.S(1))
+        
+        
         if term.is_Terms:
             if len(term) == 1:
                 term = term.args[0]
             else:
                 raise Exception("too many terms")
-        if self.args[1] != term.args[1]: return Terms()
+                
+        generic = term.args[1] == 1
+                
+        if not generic and self.args[1] != term.args[1]: 
+            return Terms()
+
+
         #TODO: prefactor
         if term.args[0].expression.is_Number:
             return self
 
-        variables = []
-        if term.args[0].expression.is_Mul:
-            for ti in term.args[0].expression.args:
+        if len(term.args[0].args) > 1: 
+            raise Exception("too many terms")
+            
+        denom2 = term.args[0].args[0][1]
+        num2 = term.args[0].args[0][0]
+
+        num_variables = []
+        if num2.is_Mul:
+            for ti in num2.args:
                 if ti.is_Number:
                     pass
                 elif ti.is_Pow:
-                    variables.append(ti.args[0])
+                    num_variables.append(ti.args[0])
                 else:
-                    variables.append(ti)
+                    num_variables.append(ti)
         else:
-            ti = term.args[0].expression
+            ti = num2
             if ti.is_Pow:
-                    variables.append(ti.args[0])
+                    num_variables.append(ti.args[0])
             else:
-                variables.append(ti)
-
-        if self.args[0].is_Add:
-            result = []
-            for factor in self.args[0].args:
-                test = factor / term.args[0]
-                select = True
-                for v in variables:
-                    if test.has(v): select = False
-                if select: result.append(factor)
-            if len(result) == 0: return Terms()
-            return Term(Add(*result), *self.args[1:])
-        else:
-            test = self.args[0] / term.args[0]
-            select = True
-            for v in variables:
-                if test.has(v): return Terms()
-            return self
+                num_variables.append(ti)
+                
+        result = Terms()
+        
+        for fraction in self.args[0].args:
+            num1, denom1 = fraction
+            denom_flag = False
+            if denom2 == 1:
+                denom_flag = True
+            else:
+                raise NotImplementedError
+                
+            if denom_flag:
+                if num1.is_Add:
+                    for factor in num1.args:
+                        test = factor / num2
+                        select = True
+                        for v in num_variables:
+                            if test.has(v): 
+                                select = False
+                        if select: 
+                            prefactor = Prefactor((factor, denom1))
+                            result += Term(prefactor, *self.args[1:])
+                else:
+                    test = num1 / num2
+                    select = True
+                    for v in num_variables:
+                        if test.has(v): 
+                            select = False
+                        
+                    if select: 
+                        prefactor = Prefactor(fraction)
+                        result += Term(prefactor, *self.args[1:])
+        return result
 
     @classmethod
     def set_lambda(cls, lam):
@@ -455,7 +487,7 @@ class Term(Printable): #in Hilbert space: normal-ordered. or in Phase space, Moy
     def _mul_pb(self, pb):
         # multiple by a sympy expression from Poisson Bracket.
         # pb should only contain numbers and annilator/creator.
-        # Lemma: any term from PB is not an Add instance.
+        # Lemma: any term from Poisson bracket is not an Add instance.
         if pb == 0:
             return Term(Prefactor(), smp.S(1), smp.S(1))
 
@@ -560,6 +592,7 @@ class Term(Printable): #in Hilbert space: normal-ordered. or in Phase space, Moy
 class Prefactor(Printable):
     '''prefactor of each term. for optimization.
     '''
+    
     @property
     def factors(self):
         if '_factors' in self.__dict__.keys():
@@ -679,6 +712,7 @@ class Creator(Term):
         else:
             return super().__new__(cls, Prefactor((smp.S(1), smp.S(1))), Cd(args[0]), smp.S(1))
 
+    
 
 class Exp(Term):
     def __new__(cls, *args):
@@ -810,13 +844,14 @@ class Terms(Printable):
     def __sub__(self, other):
         return self + -1*other
 
-    def simplify(self):
+    def simplify(self, include_constant = True):
         # return self
         #TODO: prefactor
         terms = []
         for term in self.args:
-            if (not term.args[0].is_zero) and term.args[1] != 1:
-                terms.append(term.expand())
+            if (not term.args[0].is_zero):
+                if include_constant or term.args[1] != 1:
+                    terms.append(term.expand())
         return Terms(*terms)
 
     def expand(self):

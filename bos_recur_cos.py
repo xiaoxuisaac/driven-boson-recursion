@@ -100,7 +100,7 @@ class Generator(Terms):
             for k in range(2, n+1):
                 sta += Eta.get(n,k).sta()
             sta = sta.lie_integrate(Term.modes[0])
-            sta = sta.hermiticize()
+            # sta = sta.hermiticize()
 
 
             cls.Ss[n] += sta.simplify()
@@ -148,83 +148,4 @@ def K(n,k = -1):
 
 def S(n):
     return Generator.get(n)
-
-omegad = Symbol('\omega_d', real = True)
-# omega0 = Symbol('\omega_0', real = True)
-g4 = Symbol('g_4', real = True)/4
-# g3 = Symbol('g_3', real = True)
-# g5 = Symbol('g_5', real = True)
-g6 = Symbol('g_6', real = True)/6
-# g7 = Symbol('g_7', real = True)
-g8 = Symbol('g_8', real = True)/8
-g10 = Symbol('g_{10}', real = True)/10
-# delta = Symbol('\delta', real = True)
-# Generator.gauge= 'A'
-Term.set_phase_space()
-
-a = Annilator('a')
-ar = a*Exp(-I*3*omegad*t)
-ad = Creator('a')
-adr = ad*Exp(I*3*omegad*t)
-pi = Symbol('\Pi ', complex=True)
-pir = pi*Exp(-I*7*omegad*t)
-pis = pi.conjugate()
-pisr = pis*Exp(I*7*omegad*t)
-
-# H1 = delta*ad*a + g3*(ar+adr+pir+pisr)**3
-H2 = g4*(ar+adr+pir+pisr)**4
-# H3 = g5*(ar+adr+pir+pisr)**5
-H4 = g6*(ar+adr+pir+pisr)**6
-# H5 = g7*(ar+adr+pir+pisr)**7
-H6 = g8*(ar+adr+pir+pisr)**8
-H8 = g10*(ar+adr+pir+pisr)**10
-
-Kamiltonian.set_H([H2, H4, H6, H8])
-
-
-
-# H1 = g3*(ar+adr)**3
-# H2 = g4*(ar+adr)**4
-# H3 = g5*(ar+adr)**5
-# H4 = g6*(ar+adr)**6
-# H5 = g7*(ar+adr)**7
-# H6 = g8*(ar+adr)**8
-
-# Kamiltonian.set_H([H1, H2, H3, H4, H5, H6])
-
-
-
-#two mode
-# b = Annilator('b')
-# br = b*Exp(-I*omegad*t)
-# bd = Creator('b')
-# bdr = bd*Exp(I*omegad*t)
-# Term.set_phase_space(['a','b'])
-
-
-# H1 = g3*(ar+adr+br+bdr)**3
-# H2 = g4*(ar+adr+br+bdr)**4
-# Kamiltonian.set_H([H1, H2])
-
-# # K(6)
-
-
-# import pickle
-# with open('k5.txt','rb') as f:
-#     k5 = pickle.load(f)
-
-# with open('k4.txt','rb') as f:
-#     k4 = pickle.load(f)
-
-# with open('k3.txt','rb') as f:
-#     k3 = pickle.load(f)
-
-# with open('k2.txt','rb') as f:
-#     k2 = pickle.load(f)
-
-# with open('k1.txt','rb') as f:
-#     k1 = pickle.load(f)
-
-# with open('k0.txt','rb') as f:
-#     k0 = pickle.load(f)
 
