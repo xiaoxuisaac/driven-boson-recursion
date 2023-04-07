@@ -12,7 +12,7 @@ from sympy import Number, Add, Mul, Pow, Basic, latex, Symbol, I
 from sympy.physics.secondquant import  Dagger
 from copy import deepcopy
 from no import normal
-from printable import Basic as Printable,  B, Bd, C, Cd
+from printable import Basic, Printable,  B, Bd, C, Cd
 import pickle
 
 hbar = Symbol("hbar", real=True)
@@ -50,6 +50,12 @@ class Term(Printable): #in Hilbert space: normal-ordered. or in Phase space, Moy
         -------
         Terms
         """
+        new_terms = Terms()
+        if isinstance(term, Terms):    
+            for tj in term.args:
+                new_terms += self.lie_der(tj)
+            return new_terms
+        
         if self.space == "Hilbert":
             return self.lie_der_Hilbert(term)
         return self.lie_der_phase(term)
@@ -67,6 +73,8 @@ class Term(Printable): #in Hilbert space: normal-ordered. or in Phase space, Moy
                 else:
                     omegas *= m
             frac = Prefactor((I*factor, smp.S(1)/omegas))
+        elif freq.is_Number:
+            frac = Prefactor((I*freq, smp.S(1)))
         else:
             frac = Prefactor((I, smp.S(1)/freq))
 
@@ -93,6 +101,8 @@ class Term(Printable): #in Hilbert space: normal-ordered. or in Phase space, Moy
                 else:
                     omegas *= m
             frac = Prefactor((smp.S(1)/factor/I, omegas))
+        elif freq.is_Number:
+            frac = Prefactor((smp.S(1)/I/freq, smp.S(1)))
         else:
             frac = Prefactor((smp.S(1)/I, freq))
 
@@ -114,10 +124,17 @@ class Term(Printable): #in Hilbert space: normal-ordered. or in Phase space, Moy
                 freq += freq_compo.args[0]
             return (freq/I/t).expand()
 
+
+
     def _is_same_type(self, other):
-        # check if two terms contain same type of operator and oscillating part
+        #faster comparison, may be buggy
+        return self.args[1].__hash__() == other.args[1].__hash__() and \
+            self.args[2].__hash__() == other.args[2].__hash__()
+      
+        
         return self.args[1] == other.args[1] and self.args[2] == other.args[2]
 
+      
 
     def __add__(self, other):
         if other.is_Term:
@@ -150,7 +167,7 @@ class Term(Printable): #in Hilbert space: normal-ordered. or in Phase space, Moy
 
     def __str__(self):
         e = self.args[0]*self.args[1]
-        return str(e) if self.args[-1] == 1 else str(e) + str(self.args[-1])
+        return str(e) if self.args[-1] == 1 else str(e) + '*'+str(self.args[-1])
 
     def as_coeff_Mul(self, *deps, **kwargs):
         if deps:
@@ -253,6 +270,15 @@ class Term(Printable): #in Hilbert space: normal-ordered. or in Phase space, Moy
     def expand(self):
         return Term(self.args[0].expand(), *self.args[1:])
 
+    @property
+    def expression(self):
+        if "_expression" in self.__dict__:
+            return self._expression
+        
+        self._expression = self.args[0].expression*self.args[1]*self.args[2]
+        return self._expression
+        
+
     #### Hilbert-space-specific methods
     @property
     def is_commutative(self):
@@ -348,10 +374,10 @@ class Term(Printable): #in Hilbert space: normal-ordered. or in Phase space, Moy
     #### phase-space-specific methods
 
     @classmethod
-    def set_phase_space(cls, modes = ['a'], lam = Symbol("\hbar")):
+    def set_phase_space(cls, modes = ['a'], lam = Symbol("hbar", real=True)):
         cls.space = "phase"
         cls.modes = [Annilator(mode) for mode in modes]
-
+        # cls.lam = lam #needs careful debug on what is hbar and what is commutator
 
     @classmethod
     def _star_prod(cls, expr1, expr2):
@@ -524,8 +550,16 @@ class Term(Printable): #in Hilbert space: normal-ordered. or in Phase space, Moy
         """
         if self.args[1] == term.args[1]:
             return Term(Prefactor(), smp.S(1), smp.S(1))
-        f =  Term(self.args[0]*term.args[0]/(I*hbar),  smp.S(1),
-                  self.args[2]*term.args[2])
+        
+        #TODO
+        # what factor should be. 1/ihbar of 1/ilambda?
+        f =  Term(self.args[0]*term.args[0]/(I*self.lam),  smp.S(1),
+                   self.args[2]*term.args[2])
+        
+        # f =  Term(self.args[0]*term.args[0],  smp.S(1),
+                  # self.args[2]*term.args[2])
+        
+        
         if (self.args[1], term.args[1]) in self.lie_der_map.keys():
             mb = self.lie_der_map[(self.args[1], term.args[1])]
         else:
@@ -640,7 +674,8 @@ class Prefactor(Printable):
             if num != 0:
                 args.append((num, denom))
         p = cls.__new__(cls, *args)
-        p._factors = factors
+        if args != []:
+            p._factors = factors
         return p
 
     def __mul__(self, other):
@@ -688,7 +723,8 @@ class Prefactor(Printable):
         return Prefactor(*args)
     @property
     def is_zero(self):
-        return len(self.args) == 0
+        #TODO: sometime args = (0,1)
+        return len(self.args) == 0 #or self.args[0] == (0,1)
 
     def expand(self):
         args = []
@@ -849,6 +885,9 @@ class Terms(Printable):
         #TODO: prefactor
         terms = []
         for term in self.args:
+            if term.args[0].expression.is_number and abs(term.args[0].expression)< 1e-5:
+                continue
+            
             if (not term.args[0].is_zero):
                 if include_constant or term.args[1] != 1:
                     terms.append(term.expand())
@@ -875,6 +914,16 @@ class Terms(Printable):
         for ti in self.args:
             result += ti.select(term)
         return result
+    @property
+    def expression(self):
+        if "_expression"  in self.__dict__:
+            return self._expression
+
+        self._expression = 0
+        for t in self.args:
+            self._expression += t.expression
+        return self._expression
+            
 
     #### phase-space-specific methods
     def weyl_transform(self):

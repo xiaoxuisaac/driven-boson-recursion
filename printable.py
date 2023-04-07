@@ -35,15 +35,16 @@ class C(Symbol):
     phase space variable
     '''
 
-    def __new__(cls, *args):
+    def __new__(cls, *args, **kwargs):
         # return super().__new__()
-        return super().__new__(cls, args[0])
+        return super().__new__(cls, *args, **kwargs)
 
     def _latex(self, printer):
         return "\\tilde{%s}" % self.name
 
     def _dagger_(self):
         return Cd(self.name)
+    
     def conjugate(self):
         return self._dagger()
 
@@ -51,12 +52,14 @@ class C(Symbol):
 
 class Cd(Symbol):
 
-    def __new__(cls, *args):
+    def __new__(cls, *args, **kwargs):
         # return super().__new__()
-        return super().__new__(cls, args[0]+'*')
+        if args[0][-1] == 'd':
+            return super().__new__(cls, *args, **kwargs)
+        return super().__new__(cls, args[0]+'d',  *args[1:], **kwargs)
 
     def _latex(self, printer):
-        return "\\tilde{%s}^*" % self.name[:-1]
+        return "\\tilde{%s}^d" % self.name[:-1]
 
     def _dagger_(self):
         return C(self.name[:-1])
